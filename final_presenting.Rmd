@@ -1,0 +1,445 @@
+---
+title: "Exploratory Data Analysis"
+author: "STOR 320.002 Group 12"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Creator: Daniel Yoon
+
+### Q1: What factors contributed to the United States’ happiness rank increase? Do these variables have a correlation with other countries as well?
+
+```{r}
+library(readr)
+X2015 <- read_csv("2015.csv")
+X2017 <- read_csv("2017.csv")
+
+XX2015=X2015%>%
+  rename(`Rank`="Happiness Rank",`Score`="Happiness Score",`Error`="Standard Error",`Economy`="Economy (GDP per Capita)",`Health`="Health (Life Expectancy)",`Trust`="Trust (Government Corruption)",`Dystopia`="Dystopia Residual")
+
+XX2017=X2017%>%
+  rename(`Rank`="Happiness.Rank",`Score`="Happiness.Score",`WhiskerHigh`="Whisker.high",`Whiskerlow`="Whisker.low",`Economy`="Economy..GDP.per.Capita.",`Health`="Health..Life.Expectancy.",`Trust`="Trust..Government.Corruption.",`Dystopia`="Dystopia.Residual")
+
+
+A = cor.test(XX2015$Score, XX2015$Trust)
+tidy(A)
+cor.test(XX2015$Score, XX2015$Freedom)
+cor.test(XX2015$Score, XX2015$Economy)
+
+cor.test(XX2017$Score, XX2017$Trust)
+cor.test(XX2017$Score, XX2017$Freedom)
+cor.test(XX2017$Score, XX2017$Economy)
+
+#In both years freedom and economy seem to have a large influence on happiness score. However, trust is a much lower influence on the score for both years. This might be used for further investigation.
+```
+
+### Q2: Which variable has the most dramatic correlation/impact on happiness ranking? 
+
+```{r}
+library(leaps)
+all=regsubsets(Rank~Score+Error+Economy+Family+Health+Freedom+Trust+Generosity+Dystopia,data=XX2015,nbest=2)
+
+summary(all)
+source("ShowSubsets.R")
+ShowSubsets(all)
+
+plot(Score~Trust, data=XX2015)
+plot(Rank~Health, data=XX2015)
+  mod2=lm(Rank~Health, data=XX2015)
+  abline(mod2)
+  summary(mod2)
+plot(Rank~Score, data=XX2015)
+plot(Rank~Error, data=XX2015)
+
+#Trust, health, score, error are the most influential with the lowest Mallow's CP. However, we will disregard score and error in there because it wouldn’t be surprising that score is very impactful. In addition, does not seem as predictable for the remainder of the data. So trust and health seem to be influential variables. 
+```
+
+# Interpreter: Joe Zhang
+
+### Q1: What are the common features (relationship) in the same regions (for instance, western Europe, etc.)?
+
+```{r}
+data2015 =  read_csv("2015.csv")
+data2016 =  read_csv("2016.csv")
+data2017 =  read_csv("2017.csv")
+
+Regions <- unique(data2015$Region)
+Country.region <- data2015 %>%
+  select(Country,Region)
+```
+
+```{r}
+data2015.EDA <- data2015%>%
+  arrange(Region)
+ggplot(data2015)+geom_point(aes(x=Country,y=`Happiness Rank`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Economy (GDP per Capita)`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Family`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Health (Life Expectancy)`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Freedom`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Trust (Government Corruption)`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Generosity`,color=Region))+coord_flip()
+ggplot(data2015)+geom_point(aes(x=Country,y=`Dystopia Residual`,color=Region))+coord_flip()
+```
+
+### Q2: Do those common features determine a similar happiness ranking (i.e. do geographic locations that share similar features have similar happiness)?
+
+```{r}
+ggplot(data2015)+geom_point(aes(x=`Economy (GDP per Capita)`,y=`Happiness Score`,color=Region))+geom_smooth(aes(x=`Economy (GDP per Capita)`,y=`Happiness Score`))
+```
+
+# Orator \#1: Nidhi Murlidhar
+
+### Q1: Are there any trends in which regions tend to have higher happiness rankings (for example, I’ve noticed Scandinavian countries generally tend to rank higher in terms of happiness -- is this a statistically significant trend across regions and if so are there specific variables that cause it?)
+
+
+```{r}
+happiness_2015 <- read_csv("2015.csv")
+happiness_2016 <- read_csv("2016.csv")
+happiness_2017 <- read_csv("2017.csv")
+
+#boxplots for happiness classified by region
+ggplot(happiness_2015, aes(Region, `Happiness Score`)) + 
+           geom_boxplot(data = happiness_2015, mapping = aes(x = Region, y = `Happiness Score`)) + coord_flip()
+```
+
+### Q2: Are there any dramatic jumps in happiness rankings for specific countries and if so can we pinpoint specific variables leading to the change?
+
+
+```{r}
+#plot happiness 2015 vs happiness 2017
+happiness_full <- happiness_2015 %>% full_join(happiness_2016, by=c("Country")) %>%
+                  full_join(happiness_2017, by="Country") %>%
+                  select(c("Country", "Happiness Rank.x", "Happiness Score.x", "Happiness Rank.y", "Happiness Score.y", "Happiness.Rank", "Happiness.Score")) %>%
+                  rename(`2015 Rank`=`Happiness Rank.x`, `2015 Score` = `Happiness Score.x`, `2016 Rank` = `Happiness Rank.y`, `2016 Score`=`Happiness Score.y`, `2017 Rank`=`Happiness.Rank`, `2017 Score` = `Happiness.Score`)
+happiness_full$change <- abs(happiness_full$`2017 Rank`-happiness_full$`2015 Rank`)
+```
+
+### Q3: The dataset features a Dystopia variable, described as a benchmark of unhappiness against which all other countries can be compared. Can we determine what factors would characterize this hypothetical dystopia based on the data?
+
+```{r}
+#linear dystopia model
+dystopia_predictor <- lm(`Dystopia Residual`~`Happiness Score`+`Economy (GDP per Capita)`+`Family`+`Health (Life Expectancy)`+`Freedom`+`Trust (Government Corruption)`+`Generosity`, data=happiness_2015)
+summary(dystopia_predictor)
+```
+
+# Orator \#2: Jessi Skela
+
+### Q1: What is the correlation betWeen GDP and happiness ranking?
+
+```{r}
+happy2015 = read_csv("2015.csv")
+happy2016 = read_csv("2016.csv")
+happy2017 = read_csv("2017.csv")
+
+happy2015new = 
+  rename(happy2015, GDP = `Economy (GDP per Capita)`,
+         happiness = `Happiness Score`,
+         trust = `Trust (Government Corruption)`,
+         health = `Health (Life Expectancy)`)
+ggplot(data = happy2015new, 
+mapping = aes(x = GDP, y = happiness), color = "blue") +
+geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("GDP") +
+  ylab("Hapiness Score")
+```
+
+### Q2: What is the relationship between happiness score and trust in government? What other factors play a role here?
+
+```{r}
+happy2015new %>% 
+  ggplot() +
+  geom_boxplot(aes(x = trust, y = happiness, fill = Region))
+```
+
+# Deliverer: Henry Williams
+
+### Q1: What is the strongest correlation between any two variables in the dataset?
+
+```{r}
+fifteen <- read_csv("2015.csv")
+```
+
+
+```{r}
+res <- cor(select(fifteen, -Country, -`Happiness Rank`, -Region))
+round(res, 2)
+```
+
+### Q2: Could we create a similar Utopia variable?
+
+In order to be consistent, we believe we would have to base any utopia variable on the same things that the dystopia variable was based on. But this would mean that the Utopia variable would just be the opposite of the Dystopia variable, with the country that has the lowest dystopia score getting the highest utopia score etc. I don’t think it’d be productive. Especially considering that Nidhi found the dystopia variable is just adding everything together. In the interest of exploration, however, we have included the following figures:
+
+```{r}
+fifteen.utopia <- fifteen %>%
+  mutate(utopia = (`Economy (GDP per Capita)` + Family + `Health (Life Expectancy)` + Freedom + `Trust (Government Corruption)` + Generosity))
+
+ggplot(fifteen.utopia, mapping = aes(`Dystopia Residual`, `Happiness Score`)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+ggplot(fifteen.utopia, mapping = aes(utopia, `Happiness Score`)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+#We concede that this is not the relationship we were expecting.
+```
+
+# Follow-up Questions
+
+### New Questions Based Off Initial Investigation
+
+- Q1: What factors could impact GDP that would also impact happiness score?
+- Q2: We notice there seem to be more regions here than we are familiar with. What if we do some feature engineering to come up with a new set of regions that is more familiar to us and then do some parts of the EDA again?
+- Q3: Given that our dataset includes three years of observations, can we predict happiness score in 2017 based on models trained on data from 2015 and 2016? 
+- Q4: The Social Progress Index dataset comes from an attempt to measure the well-being of countries without relying on economic data. The `SPI score` comes from variables that are sorted into `Basic Human Needs`, `Foundations of Wellbeing`, and `Opportunity`. How might this dataset interact with the World Happiness report?
+
+### Investigation of Follow-up Questions
+
+We decided to investigate questions three and four.
+
+# Question 3
+
+We created two models for question three, one using linear and one using ridge regression.
+
+### Linear model
+
+```{r}
+data2015happiness <-
+  data2015%>%
+  rename(Happiness.Score.2015 = `Happiness Score`)%>%
+  select(Country,Happiness.Score.2015)
+data2016happiness <-
+  data2016%>%
+  rename(Happiness.Score.2016 = `Happiness Score`)%>%
+  select(Country, Happiness.Score.2016)
+data2017happiness <-
+  data2017%>%
+  select(Country, Happiness.Score)
+datacombined <-
+  data2015happiness%>%
+  right_join(data2016happiness,by=c("Country"))
+```
+
+```{r}
+NEST.DATA = datacombined %>% group_by(Country) %>% nest()
+```
+
+```{r}
+a<-NEST.DATA %>% 
+  filter(Country == c("Switzerland","Iceland","Denmark","Norway","Canada","Finland")) %>%
+  unnest() %>%
+  glimpse()
+b<-NEST.DATA %>% 
+  filter(Country != c("Switzerland","Iceland","Denmark","Norway","Canada","Finland")) %>% 
+  unnest() %>% 
+  glimpse()
+```
+
+```{r}
+DATA2=datacombined
+DATA2$linpred=NA
+TEST = NEST.DATA %>% 
+  filter(Country == c("Switzerland","Iceland","Denmark","Norway","Canada","Finland")) %>% 
+  unnest()
+TRAIN  = NEST.DATA %>% 
+  filter(Country != c("Switzerland","Iceland","Denmark","Norway","Canada","Finland")) %>% 
+  unnest()
+linmod=lm(Happiness.Score.2015~Happiness.Score.2016,data=TRAIN)
+linmod
+linmodpred=predict(linmod,newdata=TEST)
+linmodpred
+DATA2$linpred[which(DATA2$Country==c("Switzerland","Iceland","Denmark","Norway","Canada","Finland"))]=linmodpred
+head(DATA2)
+```
+
+```{r}
+DATA2 =datacombined
+DATA2$linpred=NA
+for (k in unique(DATA2$Country)){
+  TEST = NEST.DATA %>% filter(Country == k) %>% unnest()
+TRAIN  = NEST.DATA %>% filter(Country != k) %>% unnest()
+linmod=lm(Happiness.Score.2015~Happiness.Score.2016,data=TRAIN)
+linmodpred=predict(linmod,newdata=TEST)
+DATA2$linpred[which(DATA2$Country==k)]=linmodpred
+}
+DATA2
+DATA2.LIN <- DATA2%>%
+  select(Country,linpred)
+DATA2.LIN.COM <-DATA2.LIN%>%
+  left_join(data2017happiness,by="Country")%>%
+  mutate(difference = (Happiness.Score - linpred)/Happiness.Score)
+DATA2.LIN.COM
+```
+
+```{r}
+DATA2.LIN.COM.SUM <- DATA2.LIN.COM%>%
+  summarize(mean=mean(difference,na.rm=T),
+          sd=sd(difference,na.rm=T),
+          max=max(abs(difference),na.rm=T),
+          min=min(abs(difference),na.rm=T))
+DATA2.LIN.COM.SUM
+```
+
+### Ridge model
+
+training set: 2015+2016
+test set: 2017
+fit ridge regression, lasso, and pcr models
+
+```{r}
+library(dplyr)
+happiness_2015_subset <- select(happiness_2015, c(`Happiness Score`, `Economy (GDP per Capita)`, `Family`, `Health (Life Expectancy)`, `Freedom`, `Trust (Government Corruption)`, `Generosity`))
+happiness_2016_subset <- select(happiness_2016, c(`Happiness Score`, `Economy (GDP per Capita)`, `Family`, `Health (Life Expectancy)`, `Freedom`, `Trust (Government Corruption)`, `Generosity`))
+happiness_train=rbind(happiness_2015_subset, happiness_2016_subset)
+happiness_test <- select(happiness_2017, c(`Happiness.Score`, `Economy..GDP.per.Capita.`, `Family`, `Health..Life.Expectancy.`, `Freedom`, `Trust..Government.Corruption.`, `Generosity`))
+names(happiness_test) <-c("Happiness Score", "Economy (GDP per Capita)", "Family", "Health (Life Expectancy)", "Freedom", "Trust (Government Corruption)", "Generosity")
+models <- regsubsets(`Happiness Score`~., data = happiness_train, nvmax = 6)
+res.sum <- summary(models)
+data.frame(
+  R2 = which.max(res.sum$adjr2),
+  CP = which.min(res.sum$cp),
+  BIC = which.min(res.sum$bic)
+)
+```
+
+```{r}
+set.seed(0242)
+library(glmnet)
+happiness_trainX <- model.matrix(`Happiness Score`~., happiness_train)
+happiness_trainY <-  happiness_train$`Happiness Score`
+ridgeModelHappiness = cv.glmnet(happiness_trainX, happiness_trainY, alpha = 0, nfolds = 5)
+ridgeLambdaHappiness = ridgeModelHappiness$lambda.min
+ridgeFittedModelHappiness = glmnet(happiness_trainX, happiness_trainY, alpha = 0)
+predict(ridgeFittedModelHappiness, s = ridgeLambdaHappiness, type = "coefficients")
+```
+
+```{r}
+ridgePred = predict(ridgeFittedModelHappiness, s = ridgeLambdaHappiness, newx = model.matrix(`Happiness Score`~., happiness_test))
+mean((ridgePred-happiness_test$`Happiness Score`)^2)
+```
+
+
+```{r}
+lassoModelHappiness = cv.glmnet(happiness_trainX, happiness_trainY, alpha = 1, nfolds = 5)
+lassoLambdaHappiness = lassoModelHappiness$lambda.min
+lassoFittedModelHappiness = glmnet(happiness_trainX, happiness_trainY, alpha = 1)
+predict(lassoFittedModelHappiness, s = lassoLambdaHappiness, type = "coefficients")
+```
+
+```{r}
+lassoPred = predict(lassoFittedModelHappiness, s = lassoLambdaHappiness, newx = model.matrix(`Happiness Score`~., happiness_test))
+mean((lassoPred-happiness_test$`Happiness Score`)^2)
+```
+
+
+Predicting happiness for 2017 based on happiness for 2015 and 2016
+
+```{r}
+happiness_scores_test <- inner_join(happiness_2015, happiness_2016, by="Country")
+happiness_scores_test <- inner_join(happiness_scores_test, happiness_2017, by="Country")
+names(happiness_scores_test)
+happiness_scores_test <- happiness_scores_test %>% select(c(`Happiness Score.x`, `Happiness Score.y`, `Happiness.Score`))
+names(happiness_scores_test) <- c("Happiness 2015", "Happiness 2016", "Happiness 2017")
+```
+
+```{r}
+set.seed(0242)
+train=sample(1:nrow(happiness_scores_test), 4*nrow(happiness_scores_test)/5)
+test = (-train)
+```
+
+```{r}
+#ridge regression
+happiness_trainX2 <- model.matrix(`Happiness 2017`~., happiness_scores_test)[train,]
+happiness_trainY2 <-  happiness_scores_test[train,]$`Happiness 2017`
+ridgeModelHappiness2 = cv.glmnet(happiness_trainX2, happiness_trainY2, alpha = 0, nfolds = 5)
+ridgeLambdaHappiness2 = ridgeModelHappiness2$lambda.min
+ridgeFittedModelHappiness2 = glmnet(happiness_trainX2, happiness_trainY2, alpha = 0)
+predict(ridgeFittedModelHappiness2, s = ridgeLambdaHappiness2, type = "coefficients")
+```
+
+```{r}
+#ridge regression MSE
+ridgePred2 = predict(ridgeFittedModelHappiness2, s = ridgeLambdaHappiness2, newx = model.matrix(`Happiness 2017`~., happiness_scores_test[test,]))
+mean((ridgePred2-happiness_scores_test[test,]$`Happiness 2017`)^2)
+```
+
+```{r}
+#lasso
+lassoModelHappiness2 = cv.glmnet(happiness_trainX2, happiness_trainY2, alpha = 1, nfolds = 5)
+lassoLambdaHappiness2 = lassoModelHappiness2$lambda.min
+lassoFittedModelHappiness2 = glmnet(happiness_trainX2, happiness_trainY2, alpha = 1)
+predict(lassoFittedModelHappiness2, s = lassoLambdaHappiness2, type = "coefficients")
+```
+
+```{r}
+#lasso MSE
+lassoPred2 = predict(lassoFittedModelHappiness2, s = lassoLambdaHappiness2, newx = model.matrix(`Happiness 2017`~., happiness_scores_test[test,]))
+mean((lassoPred2-happiness_scores_test[test,]$`Happiness 2017`)^2)
+```
+
+Findings from ridge regression:
+- Based on ridge regression we can predict the happiness score X_2017 for a given country X in 2017 using the formula X_2017 = 0.5634763 X_2016 + 0.3308947 X_2015 + 0.5860356 with MSE 0.05945292
+- Using LASSO we can predict the happiness score X_2017 for a given country X in 2017 using the formula X_2017 = 0.9489555X_2016 + 0.2903626 with MSE 0.02882134
+- Both MSE values are close to 0 which is good
+- Since I could only really try to predict 2017 based on 2015/2016 using the given data, we can’t really generalize too much here unless we potentially get outside data to make further predictions
+- Also of note, when using LASSO I found that the optimal formula didn’t use 2015 data at all
+
+
+# Question 4
+
+```{r}
+spi15 <- read_csv("spi15.csv")
+combined15 <- left_join(fifteen, spi15, by = c("Country" = "Country"))
+
+ggplot(combined15, mapping = aes(`Social Progress Index`, `Happiness Score`)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  theme_minimal()
+
+ggplot(combined15, mapping = aes(`Social Progress Index`, `Happiness Rank`, color = Region)) +
+  geom_point() +
+  geom_smooth(method = lm, level = 0) +
+  theme_minimal()
+
+ggplot(combined15, mapping = aes(`Social Progress Index`, `Economy (GDP per Capita)`)) +
+  geom_point() +
+  geom_smooth(method = lm) +
+  theme_minimal()
+
+ggplot(combined15, mapping = aes(`Social Progress Index`, `Economy (GDP per Capita)`, color = Region)) +
+  geom_point() +
+  geom_smooth(method = lm, level = 0) +
+  theme_minimal()
+
+#doing the same with `Basic Human Needs`, `Foundations of Wellbeing`, and Opportunity leads to very similar plots. Makes sense, as SPI is a combination of the three. 
+
+ggplot(combined15, mapping = aes(`Social Progress Index`, `Dystopia Residual`)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+ggplot(combined15, mapping = aes(`Social Progress Index`, `Dystopia Residual`, color = Region)) +
+  geom_point() +
+  geom_smooth(method = lm, level = 0)
+# interesting - quite a difference in the correlation of dystopia and social progress here.
+```
+
+
+
+# Summary
+
+PARAGRAPH 1 SHOULD DESCRIBE WHAT YOU LEARNED ABOUT YOUR DATA FROM INVESTIGATING THE INITIAL QUESTIONS. DID YOU FIND ANYTHING UNUSUAL IN YOUR DATA? DID ANYTHING SURPRISE YOU? WHICH OF THE INITIAL QUESTIONS WERE HELPFUL IN LEADING YOU TO MORE QUESTIONS?
+- trust and health have highest impact on happiness rank.
+- most of the predictor variables predicted happiness about the same.
+- seems like region doesn't have much effect on government trust - no, sorry, we couldn't find any information about government trust from region
+
+
+PARAGRAPH 2 SHOULD SUMMARIZE WHAT YOU LEARNED FROM INVESTIGATING THE FOLLOW-UP QUESTIONS. WHY ARE THESE FOLLOW-UP QUESTIONS INTERESTING FOR INVESTIGATION? DESCRIBE THE TABLES/FIGURES YOU USED TO EXPLORE ANSWERS TO THESE FOLLOW-UP QUESTIONS? WHAT DID YOU LEARN FROM THE TABLES/FIGURES REGARDING THE FOLLOW-UP QUESTIONS YOU PROPOSED?
+
+- we were expecting significant changes between 2015 and 2017 but actually found very little change. It's pretty closely related unless something insane happened.
