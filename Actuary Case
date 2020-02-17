@@ -1,0 +1,28 @@
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Dropbox/Acturary Case Challenge")
+library('readxl')
+library(tidyr)
+library(ggplot2)
+library(tidyverse)
+library(leaps)
+library(forecast)
+
+data <- read_excel('Co2_emission.xlsx')
+
+data2 <- data[c(1:8)]
+periodogram(data2$Total)
+time_series <- ts(data2$Total, frequency = 3, start = c(2015))
+time_series
+plot.ts(time_series, main = "Time Series of Total Co2 Emissions", col = "blue")
+abline(reg = lm(time_series ~ time(time_series)))
+fit <- hw(time_series, seasonal = "additive", 21) 
+fitted(fit)
+plot.ts(time_series, main = "Smoothed Timeseries of Total Co2 Emissions", col = "green") 
+lines(fitted(fit), col = "red")
+fit$model
+states <- fit$model$states[,1:3]
+colnames(states) <- cbind('Level','Trend','Seasonality')
+plot(states,col = "blue", main = "Decompostion of time series")
+forecast(fit, 1)
+plot(forecast(fit, 1), points(x= 2030, y= 691830798, pch = 19, col = "black", cex = 1))
+plot(points(x= 2030, y= 691830798, pch = 19, col = "red", cex = 1))
